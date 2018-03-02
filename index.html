@@ -1,0 +1,663 @@
+<!--
+
+
+    Handlebar trick: Update object THEN re-render dom.
+
+
+
+-->
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Cart Page</title>
+    <link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.3.7/css/bootstrap.min.css">
+</head>
+
+<body>
+    <!-- Modal -->
+    <div class="modal fade" id="exampleModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="exampleModalLabel">Configurations</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    ...
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary">Save changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <form id="form-country_v2" name="form-country_v2">
+        <div class="typeahead__container">
+            <div class="typeahead__field">
+                <span class="typeahead__query">
+                <input class="js-typeahead-country_v2" name="country_v2[query]" type="search" placeholder="Add Products" autocomplete="off">
+            </span>
+                <span class="typeahead__button">
+                <button type="submit">
+                    <i class="typeahead__search-icon"></i>
+                </button>
+            </span>
+            </div>
+        </div>
+    </form>
+    <hr>
+    <div id="target">
+    </div>
+    <hr>
+    <script id="entry-template" type="text/x-handlebars-template">
+        <div class="container">
+            {{#list cartItems}}
+            <!-- -->
+            <div class="col-md-1">
+                <div class="cart-item-configuration">
+                    {{#if isConfigurable}} {{#if isConfigured}} Configuration Completed: {{configure_button tag=configKey message='edit'}} {{else}} Need configuration{{configure_button tag=configKey message='configure'}} {{/if}} {{else}} No configuration needed! {{/if}}
+                </div>
+            </div>
+            <!-- -->
+            <div class="col-md-6">
+                <div class="cart-item-product-details">
+                    Info
+                    <br> {{vendorName}}- {{productId}} {{productDescription}}
+                </div>
+            </div>
+            <!-- -->
+            <div class="col-md-2">
+                <div class="cart-item-quantity">
+                    Qty
+                    <br> {{configure_qty tag=configKey amount=quantity}}
+                </div>
+            </div>
+            <!-- -->
+            <div class="col-md-1">
+                <div class="cart-item-quantity">
+                    <div class="recurring">
+                        Recurring
+                        <br> {{recurringAmount}}
+                    </div>
+                </div>
+            </div>
+            <!-- -->
+            <div class="col-md-1">
+                <div class="quantity">
+                    <div class="due-today">
+                        Due Today
+                        <br> ${{price}}
+                    </div>
+                </div>
+            </div>
+            <!-- -->
+            <div class="col-md-1">
+                <div class="quantity">
+                    <div class="exit">
+                        {{delete_button tag=configKey}}
+                    </div>
+                </div>
+            </div>
+            <hr> {{#each offers}} {{#if activated}}
+            <div class="col-md-12" style="border-top: 10px solid grey">
+                Your offer is already activated!
+            </div>
+            {{else}}
+            <div class="col-md-12" style="border-top: 10px solid grey">
+                <!-- Super cool offer! <a href="#">Activate now!</a>-->
+                {{offer_button tag=offerId}}
+            </div>
+            {{/if}} {{/each}} {{#each bundles}} {{#if activated}} {{else}}
+            <div class="col-md-12" style="border-top: 10px solid grey">
+                <!--<a href="#">Activate Bundle(inprogress)!</a>-->
+                {{bundle_button tag=offerId}}
+            </div>
+            {{/if}} {{/each}} {{/list}}
+        </div>
+    </script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.3.7/js/bootstrap.js"></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/handlebars.js/4.0.11/handlebars.min.js"></script>
+    <script type="text/javascript" src="typeahead_library.js"></script>
+    <script type="text/javascript">
+    Handlebars.registerHelper('list', function(items, options) {
+        var out = "";
+        for (var i = 0, l = items.length; i < l; i++) {
+            out = out + "<div class='row' style='margin-bottom: 43px'>" + options.fn(items[i]) + "</div>";
+        }
+        return out + "";
+    });
+
+    Handlebars.registerHelper('configure_button', function(items, options) {
+
+        var tracker = Handlebars.escapeExpression(items.hash.tag);
+        var message = Handlebars.escapeExpression(items.hash.message);
+        return new Handlebars.SafeString(
+            "<button class='cartItemConfigure' tag='" + tracker + "' data-toggle='modal' data-target='#exampleModal'>" + message + "</button>"
+        );
+    });
+
+    Handlebars.registerHelper('configure_qty', function(items, options) {
+
+        var tracker = Handlebars.escapeExpression(items.hash.tag);
+        var amount = Handlebars.escapeExpression(items.hash.amount);
+        return new Handlebars.SafeString(
+            "<input class='cartItemQty' type='number' value='" + amount + "' tag='" + tracker + "'/><span>" + amount + "</span>"
+        );
+    });
+
+    Handlebars.registerHelper('delete_button', function(items, options) {
+
+        var tracker = Handlebars.escapeExpression(items.hash.tag);
+        return new Handlebars.SafeString(
+            "<button class='cartItemDelete' tag='" + tracker + "'>Delete</button>"
+        );
+    });
+
+    Handlebars.registerHelper('offer_button', function(items, options) {
+
+        var tracker = Handlebars.escapeExpression(items.hash.tag);
+        return new Handlebars.SafeString(
+            "<button class='cartItemOffer' tag='" + tracker + "' data-toggle='modal' data-target='#exampleModal'>Activate Offer</button>"
+        );
+    });
+    Handlebars.registerHelper('bundle_button', function(items, options) {
+
+        var tracker = Handlebars.escapeExpression(items.hash.tag);
+        return new Handlebars.SafeString(
+            "<button class='cartItemBundle' tag='" + tracker + "' data-toggle='modal' data-target='#exampleModal'>Activate Bundle</button>"
+        );
+    });
+
+    var cart = {
+        "cartName": "My Cart Name",
+        "cartItems": [{
+                "configKey": "SK6982",
+                "productId": "Symantec_Trial DELTA",
+                "productCategory": "Security",
+                "productSubCategory": "Security Management & Suites",
+                "parentProductId": 1,
+                "vendorConfigKey": "SKU-00000004R0002DeviceTrial1",
+                "vendorName": "microsoft",
+                "productName": "DELTA",
+                "price": 50.00, // covers price per - if it's a number good, if not then show string
+                "productDescription": "ShortDescription1",
+                "configAttributes": {
+                    "UserName": "configTest",
+                    "Password": "configTest2",
+                    "isConfigured": false
+                },
+                "isConfigured": false,
+                "isConfigurable": true,
+                "quantity": 1,
+                "recurringType": true, // added to have recurring type
+                "recurringAmount": "one-time charge", // added to show recurring amount
+                "offers": [
+                    { "name": "Save 10%", "value": 10, "code": "xyz", "activated": true, "expiration": "tomorrow", "offerId": "abc" }
+                ],
+                "bundles": [
+                    { "name": "Save 10%", "value": 10, "code": "xyz", "activated": false, "expiration": "next week", "offerId": "xyz" }
+                ],
+                "bookmarked": true
+            },
+            {
+                "configKey": "SK6983",
+                "productId": "Symantec_Trial Bravo",
+                "productCategory": "Security",
+                "productSubCategory": "Security Management & Suites",
+                "parentProductId": 1,
+                "vendorConfigKey": "SKU-00000004R0002DeviceTrial1",
+                "vendorName": "microsoft",
+                "productName": "Bravo",
+                "price": 50.00, // covers price per - if it's a number good, if not then show string
+                "productDescription": "shortDescription2",
+                "configAttributes": {
+                    "Location": "configTest",
+                    "Security Phrase": "configTest2",
+                    "isConfigured": true
+                },
+                "isConfigured": true,
+                "isConfigurable": true,
+                "quantity": 1,
+                "recurringType": true, // added to have recurring type
+                "recurringAmount": 10.00, // added to show recurring amount
+                "offers": [
+                    { "name": "Save 10%", "value": 10, "code": "xyz", "activated": false, "expiration": "tonight", "offerId": "xyrdf" }
+                ],
+                "bundles": [
+                    { "name": "Save 10%", "value": 10, "code": "xyz", "activated": true, "expiration": "friday", "offerId": "lsdkr" }
+                ],
+                "bookmarked": true
+            }
+        ],
+        "typeaheadId": 1
+    };
+
+
+    $(document).ready(function() {
+
+        var collectedIncomingProducts = [],
+            collectedIncomingProducts_filtered = [],
+            typeaheadFiltered = [],
+            typeaheadRaw = [];
+
+        /*
+         *
+         * INITIAL RENDERING
+         *
+         */
+        var source = document.getElementById("entry-template").innerHTML;
+        var template = Handlebars.compile(source);
+        var html = template(cart);
+
+        $("#target").html(html);
+
+
+        function deleteThisCartItem(configKey) {
+
+            $("#target").html(" ");
+
+            var tick = 0;
+            cart.cartItems.forEach(function(item) {
+                if (item.configKey == configKey) {
+                    cart.cartItems.splice(tick, 1);
+                }
+                tick = tick + 1;
+            });
+
+            var htmlCart = template(cart);
+            $("#target").html(htmlCart);
+            /* reboot event listener */
+            initialRegister.qty();
+            initialRegister.delete();
+            initialRegister.configure();
+            initialRegister.offer();
+            initialRegister.bundle();
+
+        }
+
+        function updateThisCartItemQty(configKey, value) {
+
+            $("#target").html(" ");
+
+            var tick = 0;
+            var position = 0;
+
+            cart.cartItems.forEach(function(item) {
+                if (item.configKey == configKey) {
+                    position = tick;
+                    cart.cartItems[tick].quantity = parseInt(value)
+                    cart.cartItems[tick].price = cart.cartItems[tick].price + cart.cartItems[tick].price;
+                }
+
+                tick = tick + 1;
+            });
+
+            /* what's the updated value? UPDATES */
+            // console.log(cart.config[position]);
+
+            var htmlQuantity = template(cart);
+            $("#target").html(htmlQuantity);
+            /* reboot event listener */
+            initialRegister.qty();
+            initialRegister.delete();
+            initialRegister.configure();
+            initialRegister.offer();
+            initialRegister.bundle();
+
+
+        }
+
+        function showCartConfiguration(configKey) {
+
+            cart.cartItems.forEach(function(item) {
+                if (item.configKey == configKey) {
+                    $('.modal-body').html(JSON.stringify(item.configAttributes))
+                }
+            });
+
+        }
+
+        function processCartItemOffer(configKey) {
+            var temp = cart.cartItems;
+            temp.forEach(function(item) {
+                item.offers.forEach(function(items) {
+                    if (items.offerId == configKey) {
+                        $('.modal-body').html("Cart Item Offer: " + items.offerId)
+                    }
+                });
+            });
+
+        }
+
+        function processCartItemBundle(configKey) {
+            var temp = cart.cartItems;
+            temp.forEach(function(item) {
+                item.bundles.forEach(function(items) {
+                    if (items.offerId == configKey) {
+                        $('.modal-body').html("Cart Item Bundle: " + items.offerId)
+                    }
+                });
+            });
+
+        }
+
+
+
+
+        /* 
+         *
+         * TYPEAHEAD
+         *
+         */
+
+        function typeaheadInit() {
+
+            function processForBodyInjection(object) {
+
+                var alreadyExists = false;
+                // foreach here
+                var tick = 0;
+                var position = 0;
+                cart.cartItems.forEach(function(item) {
+
+                    if (item.configKey == object.config[0].configKey) {
+                        // update item only
+                        console.log("item found!");
+                        alreadyExists = true;
+                        position = tick;
+
+                    } else {
+                        alreadyExists = false;
+                    }
+                    tick = tick + 1;
+                });
+
+                if (alreadyExists) {
+
+                    $("#target").html(" ");
+
+                    cart.cartItems[position].quantity = cart.cartItems[position].quantity + 1;
+
+                    var htmlQuantityUpdate = template(cart);
+
+                    $("#target").html(htmlQuantityUpdate);
+
+                    initialRegister.qty();
+                    initialRegister.delete();
+                    initialRegister.configure();
+                    initialRegister.offer();
+                    initialRegister.bundle();
+
+
+
+                } else {
+
+                    console.log("item not found! - inserting item ");
+
+                    var newCartItem = {
+                        "configKey": object.config[0].configKey, //needs change
+                        "productId": object.name,
+                        "productCategory": object.productCategory,
+                        "productSubCategory": object.productSubCategory,
+                        "parentProductId": object.parentProductId,
+                        "vendorConfigKey": object.vendorKey,
+                        "vendorName": object.vendorKey,
+                        "productName": object.config[0].configName,
+                        "price": object.config[0].price,
+                        "productDescription": object.config[0].shortDescription,
+                        "configAttributes": {
+                            "Config1_Key1": object.config[0].configAttributes.Config1_Key1,
+                            "Config2_Key2": "config 2",
+                            "isConfigured": object.config[0].shortDescription
+                        },
+                        "isConfigured": false,
+                        "isConfigurable": true,
+                        "quantity": 1,
+                        "recurringType": true,
+                        "recurringAmount": 10.00,
+                        "offers": [
+                            { "name": "Save 10%", "value": 10, "code": "xyz", "activated": false, "expiration": "tomorrow" }
+                        ],
+                        "bundles": [
+                            { "name": "Save 10%", "value": 10, "code": "xyz", "activated": false, "expiration": "next week" }
+                        ],
+                        "bookmarked": false
+
+                    };
+
+                    $("#target").html(" ");
+
+
+
+                    cart.cartItems.push(newCartItem);
+                    var htmlTypeahead = template(cart);
+
+                    $("#target").html(htmlTypeahead);
+
+                    initialRegister.qty();
+                    initialRegister.delete();
+                    initialRegister.configure();
+                    initialRegister.offer();
+                    initialRegister.bundle();
+
+                }
+
+
+            }
+
+
+            function processDropdownItem(item, typeaheadRaw, typeaheadResult) {
+
+                const itemTarget = item;
+                const matchFound = false;
+                const typeaheadContent = typeaheadRaw;
+                const results = typeaheadResult;
+
+                var counter = 0;
+                var position = 0;
+
+                results.forEach(function(item) {
+
+                    if (item == itemTarget) {
+                        position = counter;
+                    }
+                    counter = counter + 1;
+                });
+
+                processForBodyInjection(typeaheadContent[position]);
+
+            }
+
+            function startTypeAhead() {
+
+                $.typeahead({
+                    input: '.js-typeahead-country_v2',
+                    minLength: 1,
+                    maxItem: 5,
+                    order: "asc",
+                    template: function() {
+                        return "<span style='color: #0067AC; font-size: 18px'>&#43;</span> <span class='test-display'>{{display}}</span>";
+                    },
+                    source: typeaheadFiltered[0],
+                    callback: {
+                        onClickAfter: function(node, a, item, event, i) {
+
+                            event.preventDefault();
+                            processDropdownItem(item.display, typeaheadRaw, typeaheadFiltered[0]);
+
+                        }
+                    },
+                    cache: false
+                });
+
+            }
+
+            function processForTypeahead(typeaheadContentRaw) {
+
+
+                typeaheadRaw = typeaheadContentRaw;
+
+                var typeaheadContentFiltered = typeaheadContentRaw.map(function(a) {
+                    return a.name + " > " + a.config[0].configName
+                });
+
+                //console.log(typeaheadContentRaw);
+                typeaheadFiltered.push(typeaheadContentFiltered);
+
+
+            }
+
+            function processIncomingProducts(payload) {
+
+
+
+                payload.productCatalog.forEach(function(item) {
+
+                    for (var key in item.products) {
+                        if (item.products.hasOwnProperty(key)) {
+                            var element = item.products[key];
+                            collectedIncomingProducts.push(element);
+
+                        }
+                    }
+
+                });
+
+
+                var tick = 0;
+                for (var i = 0; i < collectedIncomingProducts.length; i++) {
+
+
+
+                    for (var key in collectedIncomingProducts[i].configurations) {
+
+                        tick++;
+
+                        if (collectedIncomingProducts[i].configurations.hasOwnProperty(key)) {
+                            var element = [];
+                            element.push(collectedIncomingProducts[i].configurations[key]);
+                            collectedIncomingProducts_filtered.push({
+                                "productKey": collectedIncomingProducts[i].productKey,
+                                "name": collectedIncomingProducts[i].productName,
+                                "vendorKey": collectedIncomingProducts[i].vendorKey,
+                                "parentProductId": 1,
+                                "productCategory": collectedIncomingProducts[i].productCategory,
+                                "productSubCategory": collectedIncomingProducts[i].productSubCategory,
+                                "isConfigurable": collectedIncomingProducts[i].isConfigurable,
+                                "productPrice": 300,
+                                "config": element,
+                                "typeaheadId": tick,
+                                "quantity": 1
+                            });
+                        }
+                    }
+                }
+
+                processForTypeahead(collectedIncomingProducts_filtered);
+                startTypeAhead();
+            }
+
+            var http = new XMLHttpRequest();
+            // http://localhost:3000/db http://us-dev.s1nextgen.com/api/Product/Catalog
+            http.open("GET", "http://us-qa.s1nextgen.com/api/Product/Catalog", true);
+            http.send();
+
+            http.onreadystatechange = function(xhr) {
+
+                try {
+                    if (http.readyState === XMLHttpRequest.DONE) {
+                        if (http.status === 200) {
+                            processIncomingProducts(JSON.parse(http.responseText));
+                        } else {
+                            //removed by kunal. seems to be firing for all pages
+                            // alert('There was a problem with the request.');
+                        }
+                    }
+                } catch (e) {
+
+                }
+            }
+        }
+
+
+
+        /* end of typeahead here */
+
+        /* needed to refresh engine. Works for initial values */
+        var initialRegister = {
+
+            delete: function() {
+
+                console.log("initial delete")
+
+                $(".cartItemDelete").on('click', function(e) {
+
+                    console.log("click registered!!!");
+
+                    var tagValue = e.target;
+                    deleteThisCartItem(tagValue.getAttribute("tag"))
+
+                });
+            },
+
+            qty: function() {
+                $(".cartItemQty").change(function(e) {
+
+                    var tagValue = e.target;
+                    updateThisCartItemQty(tagValue.getAttribute("tag"), e.target.value);
+
+                });
+            },
+
+            configure: function() {
+                $(".cartItemConfigure").on('click', function(e) {
+
+
+                    var tagValue = e.target;
+                    showCartConfiguration(tagValue.getAttribute("tag"));
+
+                });
+            },
+
+            offer: function() {
+                $(".cartItemOffer").on('click', function(e) {
+
+
+                    var tagValue = e.target;
+                    processCartItemOffer(tagValue.getAttribute("tag"));
+
+                });
+            },
+
+            bundle: function() {
+                $(".cartItemBundle").on('click', function(e) {
+
+
+                    var tagValue = e.target;
+                    processCartItemBundle(tagValue.getAttribute("tag"));
+
+                });
+            }
+
+        }
+
+
+        initialRegister.delete();
+        initialRegister.qty();
+        initialRegister.configure();
+        initialRegister.offer();
+        initialRegister.bundle();
+
+        typeaheadInit();
+
+
+    });
+    </script>
+</body>
+
+</html>
